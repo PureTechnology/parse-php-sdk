@@ -46,6 +46,12 @@ After including the required files from the SDK, you need to initalize the Parse
 ParseClient::initialize( $app_id, $rest_key, $master_key );
 ```
 
+To make ParseClient session works with Symfony session, put below line in the controller action before doing any session operation such as login():
+
+```php
+ParseClient::setStorage(new ParseSymfonySessionStorage($request->getSession()));
+```
+
 Usage
 -----
 
