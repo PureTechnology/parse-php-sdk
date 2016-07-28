@@ -41,7 +41,13 @@ class ParsePush
         }
         if (isset($data['where'])) {
             if ($data['where'] instanceof ParseQuery) {
-                $data['where'] = $data['where']->_getOptions()['where'];
+                $where_options = $data['where']->_getOptions();
+
+                if (!isset($where_options['where'])) {
+                    $data['where'] = '{}';
+                } else {
+                    $data['where'] = $data['where']->_getOptions()['where'];
+                }
             } else {
                 throw new Exception(
                     'Where parameter for Parse Push must be of type ParseQuery'
@@ -55,7 +61,8 @@ class ParsePush
         }
         if (isset($data['expiration_time'])) {
             $data['expiration_time'] = ParseClient::_encode(
-                $data['expiration_time'], false
+                $data['expiration_time'],
+                false
             )['iso'];
         }
 
@@ -63,7 +70,7 @@ class ParsePush
             'POST',
             'push',
             null,
-            json_encode($data),
+            json_encode(ParseClient::_encode($data, true)),
             $useMasterKey
         );
     }
