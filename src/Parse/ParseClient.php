@@ -350,7 +350,7 @@ final class ParseClient
         $rest = curl_init();
         curl_setopt($rest, CURLOPT_URL, $url);
         if ($url[4] === 's' && !empty(self::$sslCipherList)) {
-            curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, self::$sslCipherList);
+            curl_setopt($rest, CURLOPT_SSL_CIPHER_LIST, self::$sslCipherList);
         }
         curl_setopt($rest, CURLOPT_RETURNTRANSFER, 1);
         if ($method === 'POST') {
