@@ -28,6 +28,13 @@ final class ParseClient
     private static $mountPath = "1/";
 
     /**
+     * The SSL cipher list for the current parse server
+     *
+     * @var string
+     */
+    private static $sslCipherList = null;
+
+    /**
      * The application id.
      *
      * @var string
@@ -155,6 +162,22 @@ final class ParseClient
 
         self::$serverURL = rtrim($serverURL,'/');
         self::$mountPath = trim($mountPath,'/') . '/';
+    }
+
+    /**
+     * ParseClient::setServerURL, to change the Parse Server address & mount path for this app
+     * @param string $serverUrl     The remote server url
+     * @param string $mountPath     The mount path for this server
+     *
+     * @throws \Exception
+     *
+     */
+    public static function setServerSslCipherList($sslCipherList) {
+        if (!$sslCipherList) {
+            throw new Exception('Invalid SSL Cipher List.');
+        }
+
+        self::$sslCipherList = $sslCipherList;
     }
 
     /**
@@ -326,6 +349,9 @@ final class ParseClient
         }
         $rest = curl_init();
         curl_setopt($rest, CURLOPT_URL, $url);
+        if ($url[4] === 's' && !empty(self::$sslCipherList)) {
+            curl_setopt($ch, CURLOPT_SSL_CIPHER_LIST, self::$sslCipherList);
+        }
         curl_setopt($rest, CURLOPT_RETURNTRANSFER, 1);
         if ($method === 'POST') {
             $headers[] = 'Content-Type: application/json';
