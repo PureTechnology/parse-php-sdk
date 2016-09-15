@@ -3,6 +3,7 @@
 namespace Parse;
 
 use Exception;
+use InvalidArgumentException;
 use Parse\Internal\Encodable;
 
 /**
@@ -51,6 +52,13 @@ final class ParseClient
     private static $enableCurlExceptions;
 
     /**
+     * The account key.
+     *
+     * @var string
+     */
+    private static $accountKey;
+
+    /**
      * The object for managing persistence.
      *
      * @var ParseStorageInterface
@@ -65,11 +73,25 @@ final class ParseClient
     private static $forceRevocableSession = false;
 
     /**
+     * Number of seconds to wait while trying to connect. Use 0 to wait indefinitely.
+     *
+     * @var int
+     */
+    private static $connectionTimeout;
+
+    /**
+     * Maximum number of seconds of request/response operation.
+     *
+     * @var int
+     */
+    private static $timeout;
+
+    /**
      * Constant for version string to include with requests.
      *
      * @var string
      */
-    const VERSION_STRING = 'php1.1.0';
+    const VERSION_STRING = 'php1.1.10';
 
     /**
      * Parse\Client::initialize, must be called before using Parse features.
@@ -78,8 +100,12 @@ final class ParseClient
      * @param string $rest_key             Parse REST API Key
      * @param string $master_key           Parse Master Key
      * @param bool   $enableCurlExceptions Enable or disable Parse curl exceptions
+     * @param null   $email                Parse Account Email
+     * @param null   $password             Parse Account Password
+     *
+     * @throws Exception
      */
-    public static function initialize($app_id, $rest_key, $master_key, $enableCurlExceptions = true)
+    public static function initialize($app_id, $rest_key, $master_key, $enableCurlExceptions = true, $account_key = null)
     {
         if (!ParseObject::hasRegisteredSubclass('_User')) {
             ParseUser::registerSubclass();
@@ -98,6 +124,7 @@ final class ParseClient
         self::$restKey = $rest_key;
         self::$masterKey = $master_key;
         self::$enableCurlExceptions = $enableCurlExceptions;
+        self::$accountKey = $account_key;
         if (!static::$storage) {
             if (session_status() === PHP_SESSION_ACTIVE) {
                 self::setStorage(new ParseSessionStorage());
@@ -146,7 +173,7 @@ final class ParseClient
         }
 
         if (!is_scalar($value) && $value !== null) {
-            throw new \Exception('Invalid type encountered.');
+            throw new Exception('Invalid type encountered.');
         }
 
         return $value;
@@ -245,19 +272,30 @@ final class ParseClient
      * @param null   $sessionToken Session Token.
      * @param null   $data         Data to provide with the request.
      * @param bool   $useMasterKey Whether to use the Master Key.
+     * @param bool   $appRequest   App request to create or modify a application
      *
      * @throws \Exception
      *
      * @return mixed Result from Parse API Call.
      */
-    public static function _request($method, $relativeUrl, $sessionToken = null,
-        $data = null, $useMasterKey = false
+    public static function _request(
+        $method,
+        $relativeUrl,
+        $sessionToken = null,
+        $data = null,
+        $useMasterKey = false,
+        $appRequest = false
     ) {
         if ($data === '[]') {
             $data = '{}';
         }
-        self::assertParseInitialized();
-        $headers = self::_getRequestHeaders($sessionToken, $useMasterKey);
+        if ($appRequest) {
+            self::assertAppInitialized();
+            $headers = self::_getAppRequestHeaders();
+        } else {
+            self::assertParseInitialized();
+            $headers = self::_getRequestHeaders($sessionToken, $useMasterKey);
+        }
 
         $url = self::HOST_NAME.'/'.self::API_VERSION.'/'.ltrim($relativeUrl, '/');
         if ($method === 'GET' && !empty($data)) {
@@ -280,6 +318,14 @@ final class ParseClient
             curl_setopt($rest, CURLOPT_CUSTOMREQUEST, $method);
         }
         curl_setopt($rest, CURLOPT_HTTPHEADER, $headers);
+
+        if (!is_null(self::$connectionTimeout)) {
+            curl_setopt($rest, CURLOPT_CONNECTTIMEOUT, self::$connectionTimeout);
+        }
+        if (!is_null(self::$timeout)) {
+            curl_setopt($rest, CURLOPT_TIMEOUT, self::$timeout);
+        }
+
         $response = curl_exec($rest);
         $status = curl_getinfo($rest, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($rest, CURLINFO_CONTENT_TYPE);
@@ -349,6 +395,18 @@ final class ParseClient
     }
 
     /**
+     * @throws Exception
+     */
+    private static function assertAppInitialized()
+    {
+        if (self::$accountKey === null) {
+            throw new Exception(
+                'You must call Parse::initialize(..., $accountKey) before making any requests.'
+            );
+        }
+    }
+
+    /**
      * @param $sessionToken
      * @param $useMasterKey
      *
@@ -369,6 +427,27 @@ final class ParseClient
         if (self::$forceRevocableSession) {
             $headers[] = 'X-Parse-Revocable-Session: 1';
         }
+        /*
+         * Set an empty Expect header to stop the 100-continue behavior for post
+         *     data greater than 1024 bytes.
+         *     http://pilif.github.io/2007/02/the-return-of-except-100-continue/
+         */
+        $headers[] = 'Expect: ';
+
+        return $headers;
+    }
+
+    /**
+     * @return array
+     */
+    public static function _getAppRequestHeaders()
+    {
+        if (is_null(self::$accountKey) || empty(self::$accountKey)) {
+            throw new InvalidArgumentException('A account key is required and can not be null or empty');
+        } else {
+            $headers[] = 'X-Parse-Account-Key: '.self::$accountKey;
+        }
+
         /*
          * Set an empty Expect header to stop the 100-continue behavior for post
          *     data greater than 1024 bytes.
@@ -438,5 +517,26 @@ final class ParseClient
     public static function enableRevocableSessions()
     {
         self::$forceRevocableSession = true;
+    }
+
+    /**
+     * Sets number of seconds to wait while trying to connect. Use 0 to wait indefinitely, null to default behaviour.
+     *
+     * @param int|null $connectionTimeout
+     */
+    public static function setConnectionTimeout($connectionTimeout)
+    {
+        self::$connectionTimeout = $connectionTimeout;
+    }
+
+    /**
+     * Sets maximum number of seconds of request/response operation.
+     * Use 0 to wait indefinitely, null to default behaviour.
+     *
+     * @param int|null $timeout
+     */
+    public static function setTimeout($timeout)
+    {
+        self::$timeout = $timeout;
     }
 }
