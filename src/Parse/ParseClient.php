@@ -166,8 +166,7 @@ final class ParseClient
 
     /**
      * ParseClient::setServerURL, to change the Parse Server address & mount path for this app
-     * @param string $serverUrl     The remote server url
-     * @param string $mountPath     The mount path for this server
+     * @param mixed $sslCipherList     The ssl cipher list separated by ':'
      *
      * @throws \Exception
      *
@@ -177,7 +176,11 @@ final class ParseClient
             throw new Exception('Invalid SSL Cipher List.');
         }
 
+        if (is_array($sslCipherList)) {
+            self::$sslCipherList = implode(':', $sslCipherList);
+        } else {
         self::$sslCipherList = $sslCipherList;
+    }
     }
 
     /**
