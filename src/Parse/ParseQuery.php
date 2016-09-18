@@ -764,7 +764,7 @@ class ParseQuery
                 throw new Exception('All queries must be for the same class');
             }
         }
-        $query = new self($className);
+        $query = new static($className);
         $query->_or($queryObjects);
 
         return $query;
