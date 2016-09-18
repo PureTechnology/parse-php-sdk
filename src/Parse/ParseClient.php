@@ -73,6 +73,13 @@ final class ParseClient
     private static $forceRevocableSession = false;
 
     /**
+     * Turn on outgoing connection log to /tmp/parseclient-audit.log file
+     *
+     * @var bool
+     */
+    public static $debug = false;
+
+    /**
      * Number of seconds to wait while trying to connect. Use 0 to wait indefinitely.
      *
      * @var int
@@ -329,6 +336,18 @@ final class ParseClient
         $response = curl_exec($rest);
         $status = curl_getinfo($rest, CURLINFO_HTTP_CODE);
         $contentType = curl_getinfo($rest, CURLINFO_CONTENT_TYPE);
+
+        if (self::$debug) {
+            $log = array( 
+                date('Y-m-d H:i:s'), 
+                $method, 
+                $url,
+                $status,
+                curl_getinfo($rest, CURLINFO_TOTAL_TIME)
+            );
+            error_log(implode(' - ', $log) . "\n", 3, '/tmp/parseclient-audit.log');
+        }
+
         if (curl_errno($rest)) {
             if (self::$enableCurlExceptions) {
                 throw new ParseException(curl_error($rest), curl_errno($rest));
